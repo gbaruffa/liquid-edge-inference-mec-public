@@ -1,0 +1,9 @@
+Flask==1.0.2
+py_cpuinfo==7.0.0
+paramiko==2.8.0
+GPUtil==1.4.0
+psutil==5.8.0
+pynmea2==1.18.0
+pyserial==3.5
+pysnmp==4.4.12
+PyYAML==6.0

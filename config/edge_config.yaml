@@ -1,0 +1,106 @@
+# Configuration file for LIQUID⠪EDGE edge computer
+
+# the edge properties
+edge:
+
+  # name of the agent: auto, or a specified name
+  name: auto
+
+  # management things
+  management:
+
+    # the management IP address or hostname
+    address: 192.168.2.8
+
+    # the management TCP/IP port, a number
+    port: 15009
+
+    # the maximum number of concurrent connections (currently not honored)
+    max-connections: 1
+  
+  # streaming things
+  streaming:
+
+    # the streaming IP address or hostname (currently ignored)
+    address: 
+
+    # the streaming UDP/IP port, a number
+    port: 15000
+
+  # cache things
+  cache:
+
+    # local cache folder: auto ($TMPDIR/le_edge_cache), or a specified folder (will be created)
+    folder: auto
+
+  # radio access network
+  ran:
+
+    # 60 GHz monitored AP IP address 
+    address: 192.168.0.81
+    
+    # Geographical coordinates of RAN
+    coordinates:
+      x: 43.118762
+      y: 12.35595
+
+  # the list of available engines - there may be many
+  engines:
+
+    # These placeholders are replaced by their real values
+    # __key__      : access key value
+    # __address__  : destination address
+    # __port__     : destination port
+    # __typeTYPE__ : file type
+
+    # NOTE THAT PATH IS AN ARRAY (COMMANDS) OF ARRAY (COMMAND LINE ARGUMENTS)
+
+    # plain ping (for tests)
+    - name: ping
+      path:
+        -
+          - /usr/bin/ping
+          - __address__
+      version:
+      keepalive: true
+
+    # C++ Open-CV
+    - name: liquid-edge-ocv-cam-streamer
+      path:
+        -
+          - ../liquid-edge-ocv-cam-streamer/bin/le_ocv_streamer_rx
+          - -c=__typeCONFIG__
+          - -w=__typeWEIGHTS__
+          - -n
+          - -o=3
+          - -k=__key__
+          - __address__:__port__
+      version: 0.4.0
+      keepalive: false
+
+    # ROS node
+    - name: ros-test
+      path:
+        -
+          - /usr/bin/gnome-logs
+          - --name=PIPPO
+        -
+          - /usr/bin/gnome-todo
+          - --debug
+      version:
+      keepalive: true
+
+# the cloud to contact
+cloud:
+
+  # the cloud IP address or hostname
+  address: 192.168.2.8
+
+  # the cloud TCP/IP port, a number
+  port: 15005
+
+  # the cloud access key
+  access-key: tyC7L2vx
+
+  # contact interval in seconds
+  interval: 10

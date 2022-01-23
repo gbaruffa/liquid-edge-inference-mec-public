@@ -1,0 +1,99 @@
+# Configuration file for LIQUID⠪EDGE mobile node
+
+# This section defines the mobile node properties
+mobile:
+
+  # Name of the agent
+  # With auto it is automatically derived from the hostname,
+  # differently a customized name can be chosen
+  name: auto
+
+  # Geographical coordinates of the mobile node
+  coordinates:
+    x: 43.118945
+    y: 12.35543
+  
+  # serial port where the GPS device is found
+  serialport: COM6
+
+  # radio access network
+  ran:
+
+    # 60 GHz monitored AP IP address 
+    addresses: 
+      - 192.168.0.82
+      - 192.168.0.83
+
+  # This is the list of files needed to perform the inference:
+  # they depend from the DNN but generally a configuration and weights
+  # file are necessary
+  # * type is a one-word description of the file contents
+  # * path is the full or relative path to the file
+  files:
+
+    # configuration file, contains the DNN structure
+    - type: CONFIG
+      path: ../liquid-edge-model-zoo/Caffe/MobileNetSSD_deploy.prototxt
+
+    # weights file, contains the DNN weights
+    - type: WEIGHTS
+      path: ../liquid-edge-model-zoo/Caffe/MobileNetSSD_deploy.caffemodel
+
+  # computational engine - there shall be only one enabled at a time
+  engine:
+
+    # These placeholders are replaced by their real values
+    # __key__     : access key value
+    # __address__ : destination address
+    # __port__    : destination port
+
+    # NOTE THAT PATH IS AN ARRAY (COMMAND LINE ARGUMENTS)
+
+    name: ping
+    path:
+      - /usr/bin/ping
+      - __address__
+    version:
+    keepalive: true
+
+    # name: liquid-edge-ocv-cam-streamer
+    # path:
+    #   - ../liquid-edge-ocv-cam-streamer/bin/le_ocv_streamer_tx
+    #   - -n
+    #   - -r=320x240
+    #   - -o=3
+    #   - -k=__key__
+    #   - __address__:__port__
+    # version: 0.4.0
+    # keepalive: false
+
+    # # the name is generally referred to the git repository
+    # name: ros-test
+    # path: 
+    # version: 
+    # keepalive: true
+
+  # robotic platform
+  robot:
+
+    # platform name, a string
+    name: DJI ROBOMASTER S1
+
+  # a parallel program that runs with the mobile agent
+  parallel: /usr/bin/gnome-text-editor
+
+# the cloud to contact
+cloud:
+
+  # the cloud IP address or hostname
+  address: 192.168.2.8
+
+  # the cloud TCP/IP port, a number
+  port: 15005
+
+  # the cloud access key
+  access-key: tyC7L2vx
+
+  # contact interval in seconds
+  interval: 10
+

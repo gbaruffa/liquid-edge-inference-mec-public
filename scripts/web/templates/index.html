@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIQUID EDGE PRIN 2017: {{ mycs.name }}</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="stylesheet" href="/css/simple.css?v=1.1">
+  <link rel="stylesheet" href="/css/leaflet.css">
+  <link href="/css/all.min.css" rel="stylesheet">
+  <script defer src="/js/all.min.js"></script>
+
+</head>
+
+<body>
+
+  <header>
+
+    <h1><i class="fas fa-cloud"></i> {{ mycs.name }}</h1>
+    <p>Orchestrator for <img src="/img/liquid_edge_logo28.png" height="12pt"> (<em>{{ mycs.uuid }}</em>)</p>
+
+  </header>
+
+  <main>
+
+    <div id="mapid"></div>
+
+    <details>
+      <summary><i class="fas fa-server"></i> <i class="fas fa-broadcast-tower"></i> Edge computers (<span
+          id="edgesnum">0</span>)</summary>
+      <div id="edges"></div>
+    </details>
+
+    <details>
+      <summary><i class="fas fa-robot"></i> <i class="fas fa-mobile-alt"></i> Mobile nodes (<span
+        id="mobilesnum">0</span>)</summary>
+      <div id="mobiles"></div>
+    </details>
+
+    <div id="myDynamicTables"></div>
+
+  </main>
+
+  <footer>
+
+    <p>
+      These programs are a part of the system used for the LIQUID⠪EDGE PRIN 2017 project demonstrator. Version 0.2.0.
+      <a href="https://www.github.com/gbaruffa"><i class="fab fa-github"></i></a>
+      <a href="https://www.youtube.com/user/DSPLabUniPG"><i class="fab fa-youtube"></i></a>
+    </p>
+    <p>&copy; 2021 <a href="http://dsplab.diei.unipg.it">DSPLab</a>, <a href="https://www.unipg.it">University of Perugia</a> (all rights reserved) - 
+      Powered by <a href="https://flask.palletsprojects.com">Flask</a> - 
+      Theme based on <a href="https://simplecss.org/">simplecss</a> </p>
+
+  </footer>
+
+  <script src="/js/jquery-3.6.0.min.js"></script>
+  <script src="/js/leaflet.js"></script>
+  <script>    
+    /* openstreetmap */
+    var osmlayer = L.tileLayer("https://" + ["a","b","c"][new Date()%3] + ".tile.openstreetmap.de/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      maxNativeZoom: 19,
+      attribution: "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors (<a href='http://opendatacommons.org/licenses/odbl/'>ODbL</a>)"
+    });
+
+    /* mapbox */
+    var mapboxlayer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+      maxZoom: 21,
+      attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+      id: 'mapbox/streets-v11',
+      tileSize: 512,
+      zoomOffset: -1
+    });
+
+    /* ESRI satellite map */
+    var satlayer = L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 21,
+        attribution: '&copy; <a href="http://www.esri.com/">Esri</a>, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+      }
+    );
+
+    /* this is our main leaflet map */
+    var centermap = L.map('mapid', { scrollWheelZoom: false, layers: [osmlayer, mapboxlayer, satlayer]}).setView([{{ mycs.area["coordinates"]["x"] }}, {{ mycs.area['coordinates']['y'] }}], {{ mycs.area['zoom'] }});
+    L.control.layers({"Satellite": satlayer, "OpenStreetMap": osmlayer, "Mapbox": mapboxlayer}).addTo(centermap);
+
+    /* the icons for the RAN APs */
+    var apIcon = L.icon({
+      iconUrl: '/img/ap.png',
+      iconSize: [48, 48],
+      iconAnchor: [24, 40],
+      popupAnchor: [0, 0],
+      shadowUrl: '/img/ap-shadow.png',
+      shadowSize: [64, 32],
+      shadowAnchor: [7, 28]
+    });
+
+    var apdownIcon = L.icon({
+      iconUrl: '/img/ap_down.png',
+      iconSize: [48, 48],
+      iconAnchor: [24, 40],
+      popupAnchor: [0, 0],
+      shadowUrl: '/img/ap-shadow.png',
+      shadowSize: [64, 32],
+      shadowAnchor: [7, 28]
+    });
+
+    /* a popup to display the clicked position coordinates */
+    var popup = L.popup();
+
+    /* open the popup when clicking */
+    function onMapClick(e) {
+      popup
+        .setLatLng(e.latlng)
+        .setContent(e.latlng.toString())
+        .openOn(centermap);
+    }
+
+    /* associate the popup callback to the map */
+    centermap.on('click', onMapClick);
+
+    /* format number of bytes */
+    function formatBytes(bytes, decimals = 2) {
+      if (bytes === 0)
+        return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    /* the graphical edge properties */
+    const edgeTableObject = {
+      table: null,
+      nameuuid: null,
+      time: null,
+      cache: null,
+      cpus: null,
+      cpusload: null,
+      gpus: null,
+      gpusload: null,
+      engines: null,
+      ranap: null,
+      ranapraw: "",
+      ranstas: null,
+      ranstasraw: "",
+      mobile: null,
+      viewport: null,
+      viewportraw: "",
+      viewportnum: 0
+    };
+
+    /* an edge */
+    const edgeObject = {
+      uuid: null,
+      deletable: false,
+      table: null,
+      marker: null
+    };
+
+    /* create a table for the edge */
+    function createEdgeTable(divid) {
+
+      ///////////////////////////////////////////
+      var table = Object.create(edgeTableObject);
+      table.table = document.createElement('table');
+
+      ////////////////////////////////////////////
+      var tbody = document.createElement('tbody');
+      table.table.appendChild(tbody);
+
+      ////////////////////////////////////////////
+      var thead = document.createElement("thead");
+      tbody.appendChild(thead);
+      
+      //////////////////////////////////////
+      var tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      table.nameuuid = document.createElement("th");
+      table.nameuuid.setAttribute('colspan', '3');
+      tr.appendChild(table.nameuuid);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      var td = document.createElement("td");
+      td.innerHTML = "<i class=\"far fa-clock\"></i> Time";
+      tr.appendChild(td);
+
+      table.time = document.createElement("td");
+      table.time.setAttribute('colspan', '2');
+      tr.appendChild(table.time);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-database\"></i> Cache";
+      tr.appendChild(td);
+
+      table.cache = document.createElement("td");
+      table.cache.setAttribute('colspan', '2');
+      tr.appendChild(table.cache);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-microchip\"></i> CPU";
+      tr.appendChild(td);
+
+      table.cpus = document.createElement("td");
+      tr.appendChild(table.cpus);
+
+      td = document.createElement("td");
+      td.style.width = "12rem";
+      tr.appendChild(td);
+
+      var div = document.createElement("div");
+      div.className = "myProgress";
+      td.appendChild(div);
+
+      table.cpusload = document.createElement("div");
+      table.cpusload.className = "myBar";
+      table.cpusload.textContent = "0";
+      div.appendChild(table.cpusload);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-desktop\"></i> GPU";
+      tr.appendChild(td);
+
+      table.gpus = document.createElement("td");
+      tr.appendChild(table.gpus);
+
+      td = document.createElement("td");
+      td.style.width = "12rem";
+      tr.appendChild(td);
+
+      div = document.createElement("div");
+      div.className = "myProgress";
+      td.appendChild(div);
+
+      table.gpusload = document.createElement("div");
+      table.gpusload.className = "myBar";
+      table.gpusload.textContent = "0";
+      div.appendChild(table.gpusload);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-car\"></i> Engine";
+      tr.appendChild(td);
+
+      table.engines = document.createElement("td");
+      table.engines.setAttribute('colspan', '2');
+      tr.appendChild(table.engines);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-broadcast-tower\"></i> RAN AP";
+      tr.appendChild(td);
+
+      table.ranap = document.createElement("td");
+      table.ranap.setAttribute('colspan', '2');
+      tr.appendChild(table.ranap);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-mobile-alt\"></i> RAN STA";
+      tr.appendChild(td);
+
+      table.ranstas = document.createElement("td");
+      table.ranstas.setAttribute('colspan', '2');
+      tr.appendChild(table.ranstas);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-robot\"></i> Mobile";
+      tr.appendChild(td);
+
+      table.mobile = document.createElement("td");
+      table.mobile.setAttribute('colspan', '2');
+      tr.appendChild(table.mobile);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-eye\"></i> Viewport";
+      tr.appendChild(td);
+
+      table.viewport = document.createElement("td");
+      table.viewport.setAttribute('colspan', '2');
+      tr.appendChild(table.viewport);
+
+      ////////////////////////////////////////////////////////
+      document.getElementById(divid).appendChild(table.table);
+
+      /////////////
+      return table;
+    }
+
+    /* update the table of an edge */
+    function updateEdgeTable(table, edge) {
+
+      var tc = edge.name + " (" + edge.address[0] + ", " + edge.uuid + ")";
+      if (table.nameuuid.textContent != tc)
+        table.nameuuid.textContent = tc;
+
+      if (table.time.textContent != edge.lastts)
+        table.time.textContent = edge.lastts;
+
+      tc = formatBytes(edge.cachesize);
+      if (table.cache.textContent != tc)
+        table.cache.textContent = tc;
+
+      var ih = "<ul>";
+      var totload = 0;
+      edge.hardware.cpus.forEach(cpu => {
+        ih += "<li>" + cpu.model + "</li>";
+        totload += cpu.load;
+      });
+      ih += "</ul>"; 
+      if (table.cpus.innerHTML != ih)
+        table.cpus.innerHTML = ih;
+      totload *= 100;
+      ih = totload.toFixed(0);
+      if (table.cpusload.textContent != ih)
+        table.cpusload.style.width = table.cpusload.textContent = ih + "%";
+
+      ih = "<ul>";
+      totload = 0;
+      edge.hardware.gpus.forEach(gpu => {
+        ih += "<li>" + gpu.model + "</li>";
+        totload += gpu.load;
+      });
+      ih += "</ul>"; 
+      if (table.gpus.innerHTML != ih)
+        table.gpus.innerHTML = ih;
+      totload *= 100;
+      ih = totload.toFixed(0);
+      if (table.gpusload.textContent != ih)
+        table.gpusload.style.width = table.gpusload.textContent = ih + "%";
+
+      var edge_viewport = null;
+      ih = "<ul>";
+      edge.engines.forEach(engine => {
+        if (engine.viewport && edge.mobiles.length > 0 && edge.mobiles[0].engine.name == engine.name) {
+          edge_viewport = "<img src=\"http://" + edge.address[0] + ":" + engine.viewport + "/?" + table.viewportnum + "\" width=\"35%\" onerror=\"if (this.src != '/img/liquid_edge_logo28.png') this.src = '/img/liquid_edge_logo28.png';\" onclick=\"toggleViewport()\" id=\"viewportimg\">";
+          if (table.viewportraw != edge_viewport) {
+            oldsrc = "/img/liquid_edge_paused.jpg";
+            table.viewportnum = performance.now();
+            edge_viewport = "<img src=\"http://" + edge.address[0] + ":" + engine.viewport + "/?" + table.viewportnum + "\" width=\"35%\" onerror=\"if (this.src != '/img/liquid_edge_logo28.png') this.src = '/img/liquid_edge_logo28.png';\" onclick=\"toggleViewport()\" id=\"viewportimg\">";
+          }
+        }
+        ih += "<li>" + engine.name + (engine.version ? " v" + engine.version : "") + " " + (engine.viewport ? "(<a target=\"_blank\" href=\"http://" + edge.address[0] + ":" + engine.viewport + "\">" + edge.address[0] + ":" + engine.viewport + "</a>)" : "") + "</li>";
+      });
+      ih += "</ul>";
+      if (table.engines.innerHTML != ih)
+        table.engines.innerHTML = ih;
+
+      ih = edge.ranprop['name'] + " (<i class=\"fas fa-ethernet\"></i> <a href=\"http://" + edge.ranprop['ip-address'] + "\" target=\"_blank\" rel=\"noreferrer\">" + edge.ranprop['ip-address'] + "</a>, " + edge.ranprop['mac-address'] + "), <i class=\"fas fa-wifi\"></i> " + edge.ranprop['ssid'] + " @ " + edge.ranprop['frequency'] + " MHz";
+      if (table.ranapraw != ih)
+        table.ranap.innerHTML = table.ranapraw = ih;
+
+      var index = 0;
+      ih = "<ul>";
+      edge.ranprop['remote-address'].forEach(ra => {
+        ih += "<li><i class=\"fas fa-ethernet\"></i> " + ra + ", MCS " + edge.ranprop['tx-mcs'][index] + ", <i class=\"fas fa-bolt\"></i> " + edge.ranprop['rssi'][index] + " dBm, <i class=\"fas fa-vector-square\"></i> " + edge.ranprop['tx-sector'][index] + " <img src=\"/img/azel/az" + edge.ranprop['tx-sector'][index] + ".png\"><img src=\"/img/azel/el" + edge.ranprop['tx-sector'][index] + ".png\">, <i class=\"fas fa-ruler\"></i> " + edge.ranprop['distance'][index] + " m, <i class=\"fas fa-barcode\"></i> " + edge.ranprop['tx-phy-rate'][index]/1000000 + " Mbps</li>";
+        index++;
+      });
+      ih += "</ul>"; 
+      if (table.ranstasraw != ih)
+        table.ranstas.innerHTML = table.ranstasraw = ih;
+
+      ih = "<ul>";
+      edge.mobiles.forEach(mn => {
+        ih += "<li>" + mn.name + " (" + mn.hardware['robot-model'] + "), " + mn.uuid + "</li>";
+      });
+      ih += "</ul>"; 
+      if (table.mobile.innerHTML != ih)
+        table.mobile.innerHTML = ih;
+
+      ih = edge_viewport;
+      if (table.viewportraw != ih)
+        table.viewport.innerHTML = table.viewportraw = ih; 
+    }
+
+    var oldsrc = "/img/liquid_edge_paused.jpg";
+    function toggleViewport() {
+      var img = document.getElementById("viewportimg");
+      //console.log("Image clicked in: " + img.src);
+      var tmpsrc = img.src;
+      img.src = oldsrc;
+      oldsrc = tmpsrc;
+      //console.log("Image clicked out: " + img.src);
+    }
+
+    /* keep a list of edges */
+    var edgeobjects = Array();
+
+    /* keep a list of links */
+    var linkLines = Array();
+    var offset = 0;
+
+    /* update and draw the RAN APs */
+    function edge_list_update(j) {
+
+      /* mark all deletable */
+      for (var i = 0; i < edgeobjects.length; i++)
+        edgeobjects[i].deletable = true;
+
+      /* remove all link lines */
+      for (var i = 0; i < linkLines.length; i++)
+        centermap.removeLayer(linkLines[i]);
+
+      /* add operating markers */
+      j.forEach(edge => {
+        //console.log(edge.ranprop);
+        if (edge.ranprop['name']) {
+
+          /* search marker in array */
+          var i;
+          for (i = 0; i < edgeobjects.length; i++)
+            if (edgeobjects[i].uuid == edge.uuid)
+              break; /* found */
+
+          /* if not found, add one */
+          if (i == edgeobjects.length) {
+            //console.log("AP added " + edge.ranprop['mac-address']);
+            edgeobjects.push({
+              uuid: edge.uuid,
+              deletable: false,
+              marker: L.marker([edge.ranprop.coordinates.x, edge.ranprop.coordinates.y], {icon: (edge.ranprop.frequency ? apIcon : apdownIcon)})
+                .addTo(centermap)
+                .bindTooltip("<div class=\"small-text\"><b>" + edge.ranprop.name + "</b> (" + edge.ranprop['mac-address'] + ")<br/>" + edge.ranprop.ssid + ", " + edge.ranprop.frequency + " MHz<br/>" + edge.ranprop['remote-address'].join('<br/>') + "</div>")
+                .openTooltip(),
+              table: createEdgeTable("edges")
+            });
+            updateEdgeTable(edgeobjects[edgeobjects.length - 1].table, edge);
+          } else {
+            /* found, update it */
+            //console.log("AP updated " + edge.ranprop['mac-address']);
+            edgeobjects[i].deletable = false;
+            edgeobjects[i].marker
+              .setLatLng([edge.ranprop.coordinates.x, edge.ranprop.coordinates.y])
+              .setIcon(edge.ranprop.frequency ? apIcon : apdownIcon) // a bit heavy?
+              .setTooltipContent("<div class=\"small-text\"><b>" + edge.ranprop.name + "</b> (" + edge.ranprop['mac-address'] + ")<br/>" + edge.ranprop.ssid + ", " + edge.ranprop.frequency + " MHz<br/>" + edge.ranprop['remote-address'].join('<br/>') + "</div>");
+            updateEdgeTable(edgeobjects[i].table, edge);
+          }
+
+          /* add link */
+          edge.mobiles.forEach(mn => {
+
+            /* find the mobile */
+            var j;
+            for (j = 0; j < mobileobjects.length; j++)
+              if (mobileobjects[j].uuid == mn.uuid)
+                break;
+
+            /* found */
+            if (j < mobileobjects.length) {
+              var latlngs = [
+                [edgeobjects[i].marker.getLatLng().lat, edgeobjects[i].marker.getLatLng().lng],
+                [mobileobjects[j].marker.getLatLng().lat, mobileobjects[j].marker.getLatLng().lng]
+              ];
+              //console.log(latlngs);
+              linkLines.push(L.polyline(latlngs, {color: 'red', dashArray: "8", dashOffset: String(offset)}).addTo(centermap));
+            }
+            offset += 1;
+          });
+        }
+      });
+
+      /* remove all unused markers */
+      for (var i = edgeobjects.length - 1; i >= 0; i--) {
+        if (edgeobjects[i].deletable) {
+          //console.log("AP deleted " + edgeMarkers[i].options.title);
+          centermap.removeLayer(edgeobjects[i].marker);
+          edgeobjects[i].table.table.parentNode.removeChild(edgeobjects[i].table.table);
+          edgeobjects.splice(i, 1);
+        }
+      }
+    }
+
+    const mobileTableObject = {
+      table: null,
+      nameuuid: null,
+      time: null,
+      cpus: null,
+      gpus: null,
+      engine: null,
+      ransta: null,
+      ranstaraw: ""
+    };
+
+    const mobileObject = {
+      uuid: null,
+      deletable: false,
+      table: null,
+      marker: null
+    };
+    
+    function createMobileTable(divid) {
+
+      /////////////////////////////////////////////
+      var table = Object.create(mobileTableObject);
+      table.table = document.createElement('table');
+
+      ////////////////////////////////////////////
+      var tbody = document.createElement('tbody');
+      table.table.appendChild(tbody);
+
+      ////////////////////////////////////////////
+      var thead = document.createElement("thead");
+      tbody.appendChild(thead);
+
+      //////////////////////////////////////
+      var tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      table.nameuuid = document.createElement("th");
+      table.nameuuid.setAttribute('colspan', '2');
+      tr.appendChild(table.nameuuid);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      var td = document.createElement("td");
+      td.innerHTML = "<i class=\"far fa-clock\"></i> Time";
+      tr.appendChild(td);
+
+      table.time = document.createElement("td");
+      tr.appendChild(table.time);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-microchip\"></i> CPU";
+      tr.appendChild(td);
+
+      table.cpus = document.createElement("td");
+      tr.appendChild(table.cpus);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-desktop\"></i> GPU";
+      tr.appendChild(td);
+
+      table.gpus = document.createElement("td");
+      tr.appendChild(table.gpus);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-car\"></i> Engine";
+      tr.appendChild(td);
+
+      table.engine = document.createElement("td");
+      tr.appendChild(table.engine);
+
+      //////////////////////////////////
+      tr = document.createElement("tr");
+      tbody.appendChild(tr);
+
+      td = document.createElement("td");
+      td.innerHTML = "<i class=\"fas fa-mobile-alt\"></i> RAN STA";
+      tr.appendChild(td);
+
+      table.ransta = document.createElement("td");
+      tr.appendChild(table.ransta);
+
+      ////////////////////////////////////////////////////////
+      document.getElementById(divid).appendChild(table.table);
+
+      /////////////
+      return table;
+    }
+
+    function updateMobileTable(table, mobile) {
+
+      var tc = mobile.name + " (" + mobile.uuid + ")";
+      if (table.nameuuid.textContent != tc)
+        table.nameuuid.textContent = tc;
+
+      if (table.time.textContent != mobile.lastts)
+        table.time.textContent = mobile.lastts;
+
+      var ih = "<ul>";
+      mobile.hardware.cpus.forEach(cpu => {
+        ih += "<li>" + cpu.model + "</li>";
+      });
+      ih += "</ul>"; 
+      if (table.cpus.innerHTML != ih)
+        table.cpus.innerHTML = ih;
+
+      ih = "<ul>";
+      mobile.hardware.gpus.forEach(gpu => {
+        ih += "<li>" + gpu.model + "</li>";
+      });
+      ih += "</ul>"; 
+      if (table.gpus.innerHTML != ih)
+        table.gpus.innerHTML = ih;
+
+      if (table.engine.textContent != mobile.engine.name)
+        table.engine.textContent = mobile.engine.name;
+
+      ih = "<ul>";
+      mobile.ranprop.forEach(ranprop => {
+        if (ranprop['name']) {
+          ih += "<li>" + ranprop['name'] + " (<i class=\"fas fa-ethernet\"></i> <a href=\"http://" + ranprop['ip-address'] + "\" target=\"_blank\" rel=\"noreferrer\">" + ranprop['ip-address'] + "</a>, " + ranprop['mac-address'] + "), <i class=\"fas fa-wifi\"></i> " + ranprop['ssid'] + " @ " + ranprop['frequency'] + " MHz, MCS " + ranprop['tx-mcs'] + ", <i class=\"fas fa-bolt\"></i> " + ranprop['rssi'] + " dBm, <i class=\"fas fa-vector-square\"></i> " + ranprop['tx-sector'] + ", <i class=\"fas fa-ruler\"></i> " + ranprop['distance'] + " m, <i class=\"fas fa-barcode\"></i> " + ranprop['tx-phy-rate'] + " &#8658; <i class=\"fas fa-broadcast-tower\"></i> " + ranprop['remote-address'] + "</li>";
+        }
+      });
+      ih += "</ul>"; 
+      if (table.ranstaraw != ih)
+        table.ransta.innerHTML = table.ranstaraw = ih;
+    }
+
+    /* keep a list of mobiles */
+    var mobileobjects = Array();
+
+    /* update and draw the mobiles */
+    function mobile_list_update(j) {
+
+      /* mark all deletable */
+      for (var i = 0; i < mobileobjects.length; i++)
+        mobileobjects[i].deletable = true;
+
+      /* add operating markers */
+      j.forEach(mobile => {
+        //console.log(mobile.ranprop);
+        if (mobile.name) {
+
+          /* search marker in array */
+          var i;
+          for (i = 0; i < mobileobjects.length; i++)
+            if (mobileobjects[i].uuid == mobile.uuid)
+              break; /* found */
+
+          /* if not found, add one */
+          if (i == mobileobjects.length) {
+            //console.log("Mobile added " + mobile.uuid);
+            mobileobjects.push({
+              uuid: mobile.uuid,
+              deletable: false,
+              marker: L.marker([mobile.coordinates[0], mobile.coordinates[1]]).addTo(centermap)
+                .bindTooltip("<div class=\"small-text\"><b>" + mobile.name + "</b><br/>" + mobile.uuid + "</div>")
+                .openTooltip(),
+              table: createMobileTable("mobiles")
+            });
+            updateMobileTable(mobileobjects[mobileobjects.length - 1].table, mobile);
+          } else {
+            /* found, update it */
+            //console.log("Mobile updated " + mobile.uuid);
+            mobileobjects[i].deletable = false;
+            mobileobjects[i].marker
+              .setLatLng([mobile.coordinates[0], mobile.coordinates[1]])
+              .setTooltipContent("<div class=\"small-text\"><b>" + mobile.name + "</b><br/>" + mobile.uuid + "</div>");
+            updateMobileTable(mobileobjects[i].table, mobile);
+         }
+        }
+      });
+
+      /* remove all unused markers */
+      for (var i = mobileobjects.length - 1; i >= 0; i--) {
+        if (mobileobjects[i].deletable) {
+          //console.log("Mobile deleted " + mobileMarkers[i].options.title);
+          centermap.removeLayer(mobileobjects[i].marker);
+          mobileobjects[i].table.table.parentNode.removeChild(mobileobjects[i].table.table);
+          mobileobjects.splice(i, 1);
+        }
+      }
+    }
+
+    /* call the API to retrieve a JSON with the active edges and mobiles */
+    function get_edges_and_mobiles() {
+
+      $.ajax("/api/get/edges_and_mobiles")
+        .done(function (result) {
+          //console.log(result);
+
+          /* draw the mobiles on the map and in the tables*/
+          mobile_list_update(result.mobiles);
+          $("#mobilesnum").html(result.mobiles.length);
+
+          /* draw the edges on the map */
+          edge_list_update(result.edges);
+          $("#edgesnum").html(result.edges.length);
+        })
+        .fail(function () {
+          console.log("Error calling API edges and mobiles");
+          $("#edges").html("");
+          $("#edgesnum").html(0);
+          $("#mobiles").html("");
+          $("#mobilesnum").html(0);
+        });
+    }
+
+    /* Get them now */
+    get_edges_and_mobiles();
+
+    /* renew the list every 4s */
+    setInterval(get_edges_and_mobiles, 500);
+
+  </script>
+
+</body>
+
+</html>

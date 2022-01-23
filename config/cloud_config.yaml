@@ -1,0 +1,45 @@
+# Configuration file for LIQUID⠪EDGE cloud orchestrator
+
+# the cloud properties
+cloud:
+
+  # name of the agent: auto, or a specified name
+  name: auto
+
+  # information on the managed geographical area
+  area:
+
+    # center of the area
+    coordinates:
+      x: 43.1189155
+      y: 12.3554376
+
+    # typical map zoom
+    zoom: 19
+    
+  # management things
+  management:
+
+    # the management IP address or hostname
+    address: 192.168.2.8
+
+    # the management TCP/IP port, a number
+    port: 15005
+
+    # the cloud access key
+    access-key: tyC7L2vx
+
+    # the maximum number of concurrent connections (currently not honored)
+    max-connections: 5
+
+    # port for the web interface
+    webport: 15006
+
+  # cache things
+  cache:
+
+    # local cache folder: auto ($TMPDIR/le_cloud_cache), or a specified folder (will be created)
+    folder: auto
+
+  # parallel process to run together with the agent
+  parallel: /usr/bin/gnome-calculator
